@@ -1,61 +1,44 @@
-import { useEffect, useState } from "react";
-
-const initialInventory = [
-  { name: "Amul Milk", stock: 2 },
-  { name: "Coca Cola", stock: 0 },
-  { name: "Bread", stock: 8 },
-  { name: "Eggs", stock: 5 },
-  { name: "Paneer", stock: 1 },
-];
-
-export default function InventoryPanel() {
-  const [inventory, setInventory] = useState(initialInventory);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setInventory(prev =>
-        prev.map(item => ({
-          ...item,
-          stock: Math.max(0, item.stock + (Math.random() > 0.5 ? -1 : 1))
-        }))
-      );
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, []);
+export default function InventoryPanel({ inventory }) {
+  const lowStockCount = inventory.filter((item) => item.stock <= item.reorderPoint).length;
 
   return (
-    <div
-      style={{
-        background: "#111118",
-        border: "1px solid #1E1E2E",
-        borderRadius: "8px",
-        padding: "16px",
-        marginTop: "16px"
-      }}
-    >
-      <h3 style={{ marginBottom: "12px" }}>Inventory</h3>
+    <div className="panel">
+      <div className="panel-header">
+        <div>
+          <p className="panel-kicker">Inventory Panel</p>
+          <h2>Live warehouse stock</h2>
+        </div>
+        <span className="panel-chip warning">{lowStockCount} alerts</span>
+      </div>
 
-      {inventory.map((item, i) => {
-        const isLow = item.stock <= 2;
+      <div className="inventory-list">
+        {inventory.map((item) => {
+          const fill = (item.stock / item.capacity) * 100;
+          const isLow = item.stock <= item.reorderPoint;
 
-        return (
-          <div
-            key={i}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              padding: "6px 0",
-              color: isLow ? "#EF4444" : "#ccc"
-            }}
-          >
-            <span>{item.name}</span>
-            <span style={{ fontFamily: "monospace" }}>
-              {item.stock}
-            </span>
-          </div>
-        );
-      })}
+          return (
+            <div className="inventory-item" key={item.id}>
+              <div className="inventory-copy">
+                <strong>{item.name}</strong>
+                <p>
+                  {item.stock} / {item.capacity} units
+                </p>
+              </div>
+              <div className="inventory-meter">
+                <div className="inventory-track">
+                  <div
+                    className={`inventory-fill ${isLow ? "danger" : "safe"}`}
+                    style={{ width: `${fill}%` }}
+                  />
+                </div>
+                <span className={`status-pill ${isLow ? "danger" : "success"}`}>
+                  {isLow ? "Reorder" : "Healthy"}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

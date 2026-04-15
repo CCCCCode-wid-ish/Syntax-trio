@@ -1,23 +1,21 @@
 import Topbar from "./Topbar";
 import Sidebar from "./Sidebar";
 
-export default function Shell({ children }) {
+export default function Shell({
+  children,
+  currentPage,
+  currentPageLabel,
+  navItems,
+  onLogout,
+  onNavigate,
+  userPhone,
+}) {
   return (
-    <div>
-      <Topbar />
-
-      <div style={{ display: "flex" }}>
-        <Sidebar />
-
-        <div style={{
-          flex: 1,
-          padding: "24px",
-          background: "#0A0A0F",
-          minHeight: "100vh",
-          color: "white"
-        }}>
-          {children}
-        </div>
+    <div className="app-shell">
+      <Topbar currentPageLabel={currentPageLabel} onLogout={onLogout} userPhone={userPhone} />
+      <div className="shell-body">
+        <Sidebar currentPage={currentPage} items={navItems} onNavigate={onNavigate} />
+        <main className="shell-content">{children}</main>
       </div>
     </div>
   );
