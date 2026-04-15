@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { io } from "socket.io-client";
 import {
   AgentRecommendation,
   Alert,
@@ -18,13 +19,27 @@ const fetchSnapshot = async (method: "GET" | "POST" = "GET"): Promise<DashboardS
   return response.json();
 };
 
+type LiveEvent = {
+  event: string;
+  orderId?: string;
+  store?: string;
+  riderId?: string;
+  pickerId?: string;
+  log?: string;
+  timestamp?: string;
+  payload?: Record<string, unknown>;
+};
+
 const statusTone: Record<CustomerOrder["status"], string> = {
   queued: "tone-muted",
   routed: "tone-info",
+  allocated: "tone-info",
   picking: "tone-warn",
+  packed: "tone-info",
   dispatching: "tone-info",
   out_for_delivery: "tone-good",
-  delivered: "tone-good"
+  delivered: "tone-good",
+  rejected: "tone-bad"
 };
 
 export function App() {
@@ -32,9 +47,12 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ticking, setTicking] = useState(false);
+  const [events, setEvents] = useState<LiveEvent[]>([]);
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    const socket = io({ path: "/socket.io" });
 
     const load = async () => {
       try {
@@ -54,11 +72,49 @@ export function App() {
       }
     };
 
+    const handleSocketEvent = (data: LiveEvent) => {
+      setEvents((prev) => [{ ...data, timestamp: data.timestamp ?? new Date().toISOString() }, ...prev].slice(0, 30));
+      if (data.event !== "AGENT_DECISION_LOG") {
+        fetchSnapshot()
+          .then((result) => {
+            if (!cancelled) setSnapshot(result);
+          })
+          .catch(() => {
+            /* ignore live refresh errors */
+          });
+      }
+    };
+
+    socket.on("connect", () => {
+      setConnected(true);
+    });
+    socket.on("disconnect", () => {
+      setConnected(false);
+    });
+    socket.on("INITIAL_SNAPSHOT", (data: DashboardSnapshot) => {
+      if (!cancelled) {
+        setSnapshot(data);
+        setError(null);
+        setLoading(false);
+      }
+    });
+    const eventNames = [
+      "ORDER_CREATED",
+      "ORDER_ROUTED",
+      "INVENTORY_UPDATED",
+      "ORDER_PICKED",
+      "ORDER_DELIVERED",
+      "AGENT_DECISION_LOG"
+    ];
+    eventNames.forEach((name) => socket.on(name, handleSocketEvent));
+
     load();
     const interval = window.setInterval(load, 15_000);
+
     return () => {
       cancelled = true;
       window.clearInterval(interval);
+      socket.disconnect();
     };
   }, []);
 
@@ -150,11 +206,40 @@ export function App() {
                 <span className={`chip ${statusTone[order.status]}`}>{order.status.replaceAll("_", " ")}</span>
               </div>
               <p>{order.zone} zone · Promise {order.promisedMinutes} min</p>
-              <p>Store {order.assignedStoreId ?? "Pending"} · Rider {order.assignedRiderId ?? "Pending"}</p>
-              <p>ETA {order.estimatedMinutes?.toFixed(1) ?? "--"} min · Margin {order.margin?.toFixed(2) ?? "--"}</p>
-              <p>Basket {order.basketValue.toFixed(2)} · Pick path {order.pickPathMeters ?? "--"}m</p>
+              <p>Store {order.assignedStoreId ?? "Pending"} · Picker {order.assignedPickerId ?? "Pending"}</p>
+              <p>Rider {order.assignedRiderId ?? "Pending"} · ETA {order.estimatedMinutes?.toFixed(1) ?? "--"} min</p>
+              <p>Basket {order.basketValue.toFixed(2)} · Margin {order.margin?.toFixed(2) ?? "--"} · Pick path {order.pickPathMeters ?? "--"}m</p>
             </article>
           ))}
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-head">
+          <div>
+            <p className="eyebrow">Live updates</p>
+            <h2>Realtime Event Log</h2>
+          </div>
+          <div className="stamp">
+            <span>WebSocket</span>
+            <strong className={connected ? "tone-good" : "tone-bad"}>{connected ? "Live" : "Disconnected"}</strong>
+          </div>
+        </div>
+        <div className="stack">
+          {events.length ? (
+            events.map((event, index) => (
+              <article key={`${event.event}-${index}-${event.timestamp}`} className="event-card">
+                <div className="order-topline">
+                  <strong>{event.event}</strong>
+                  <span className="chip tone-info">{event.orderId ?? event.store ?? "system"}</span>
+                </div>
+                <p>{event.log ?? JSON.stringify(event.payload)}</p>
+                <p className="muted">{new Date(event.timestamp ?? Date.now()).toLocaleTimeString()}</p>
+              </article>
+            ))
+          ) : (
+            <p>No realtime events received yet.</p>
+          )}
         </div>
       </section>
     </main>
