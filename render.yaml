@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: autofulfill-ai
+    runtime: node
+    plan: free
+    autoDeploy: true
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+    buildFilter:
+      paths:
+        - package.json
+        - package-lock.json
+        - vite.config.ts
+        - tsconfig.server.json
+        - index.html
+        - src/**
+        - server/**
