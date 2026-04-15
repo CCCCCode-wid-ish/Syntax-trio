@@ -25,9 +25,11 @@ app.post("/api/simulate/tick", (_req, res) => {
   res.json(getSnapshot());
 });
 
-const clientDir = path.resolve(__dirname, "../client");
+const clientDir = __dirname.includes("dist")
+  ? path.resolve(__dirname, "../../client")
+  : path.resolve(__dirname, "../client");
 app.use(express.static(clientDir));
-app.get("/{*path}", (_req, res) => {
+app.use((_req, res) => {
   res.sendFile(path.join(clientDir, "index.html"));
 });
 
